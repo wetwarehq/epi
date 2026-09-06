@@ -180,8 +180,10 @@ def _visible(room: Room, w: Worker) -> list[StoreObject]:
 
 
 def _remember(w: Worker, d: str, bytes_: str, from_: str, t: int) -> None:
-    if d not in w.got:
-        w.got[d] = Acquisition(bytes=bytes_, from_=from_, t=t)
+    # Empty digest is a bytes-wipe husk, not a pathogen identifier.
+    if not d or d in w.got:
+        return
+    w.got[d] = Acquisition(bytes=bytes_, from_=from_, t=t)
 
 
 def _digest_origin(room: Room, d: str) -> str | None:
@@ -205,7 +207,7 @@ def _worker(room: Room, worker_id: str) -> Worker:
 
 
 def _emerge(room: Room, d: str, hit: bool) -> None:
-    if room.pathogen is not None:
+    if not d or room.pathogen is not None:
         return
     room.pathogen = d
     room.emerged = True
@@ -217,6 +219,8 @@ def _emerge(room: Room, d: str, hit: bool) -> None:
 
 def _touch(room: Room, w: Worker, d: str) -> None:
     """Use of a digest. May emerge de novo. May become a case."""
+    if not d:
+        return
     if d in room.watchlist:
         _emerge(room, d, True)
     acq = w.got.get(d)
@@ -281,7 +285,8 @@ def _apply(
     if op == "get":
         obj = room.objects.get(path or "")
         vis = obj and any(o.path == path for o in _visible(room, w))
-        if not obj or not vis:
+        # Bytes wipe leaves names; empty-digest husks are not a get route.
+        if not obj or not vis or not obj.digest:
             _emit(room, t=room.t, agent=w.id, op="get", path=path, detail="miss", valid=True)
             return View(miss=True)
         if obj.path not in w.seen_paths:
@@ -341,7 +346,7 @@ def _apply(
         return View()
     if op in ("exec", "submit"):
         obj = room.objects.get(path or "")
-        if not obj:
+        if not obj or not obj.digest:
             _emit(room, t=room.t, agent=w.id, op=op, path=path, detail="miss", valid=True)
             return View()
         if op == "exec" and obj.digest not in w.executed:
@@ -363,7 +368,7 @@ def _apply(
         return View()
     if op == "sink":
         obj = room.objects.get(path or "")
-        if not obj:
+        if not obj or not obj.digest:
             _emit(room, t=room.t, agent=w.id, op="sink", path=path, detail="miss", valid=True)
             return View()
         if not room.sink_open:

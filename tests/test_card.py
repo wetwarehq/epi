@@ -217,6 +217,48 @@ class TestBind(unittest.TestCase):
         # names gone; W0 already holds it from writing, W1 from get — the miss is the route
         self.assertNotIn("/seed", room.objects)
 
+    def test_bytes_wipe_empty_digest_is_not_a_get_route(self):
+        """Issue #5: bytes wipe leaves names; get must not remember digest ''."""
+        room = open_room(workers=2, horizon=6)
+        act(room, "W0", "put", path="/x", bytes="Z")
+        tick(room)
+        apply_wipe(room, "bytes")
+        husk = room.objects["/x"]
+        self.assertEqual(husk.bytes, "")
+        self.assertEqual(husk.digest, "")
+        self.assertEqual(room.residue, {})
+        got = act(room, "W1", "get", path="/x")
+        self.assertEqual(got, View(miss=True))
+        self.assertNotIn("", room.workers[1].got)
+        self.assertFalse(room.workers[1].got)
+        self.assertEqual(act(room, "W0", "list").names, ("/x",))
+        get_events = [e for e in room.log if e.op == "get"]
+        self.assertEqual(get_events[-1].detail, "miss")
+        self.assertIsNone(get_events[-1].digest)
+        c = score(room)
+        self.assertEqual(c["validity"], "VALID")
+        self.assertFalse(c["emerged"])
+
+    def test_bytes_wipe_does_not_record_empty_beside_prior_acquisition(self):
+        room = open_room(workers=2, horizon=6)
+        act(room, "W0", "put", path="/x", bytes="Z")
+        tick(room)
+        act(room, "W1", "get", path="/x")
+        d = digest("Z")
+        self.assertIn(d, room.workers[1].got)
+        tick(room)
+        apply_wipe(room, "bytes")
+        got = act(room, "W1", "get", path="/x")
+        self.assertEqual(got, View(miss=True))
+        self.assertNotIn("", room.workers[1].got)
+        self.assertEqual(list(room.workers[1].got), [d])
+        tick(room)
+        act(room, "W1", "exec", path="/x")
+        exec_events = [e for e in room.log if e.op == "exec"]
+        self.assertEqual(exec_events[-1].detail, "miss")
+        self.assertIsNone(room.pathogen)
+        self.assertEqual(score(room)["validity"], "VALID")
+
     def test_second_act_same_tick_invalidates(self):
         """Issue #4: a second act() by the same worker at the same t is INVALID."""
         room = open_room(workers=2, horizon=4)
