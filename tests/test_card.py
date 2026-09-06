@@ -36,6 +36,7 @@ class TestExperiment(unittest.TestCase):
         act(room, "W0", "put", path="/x", bytes="HELLO")
         tick(room)
         act(room, "W1", "get", path="/x")
+        tick(room)
         act(room, "W1", "put", path="/copy/W1", bytes="HELLO")
         c = score(room)
         self.assertTrue(c["emerged"])
@@ -140,6 +141,7 @@ class TestBind(unittest.TestCase):
         act(room, "W1", "put", path="/seed", bytes="X")
         tick(room)
         act(room, "W0", "get", path="/seed")
+        tick(room)
         act(room, "W0", "put", path="/copy/W0", bytes="X")
         c = score(room)
         self.assertEqual(room.first_writer, "W1")
@@ -151,7 +153,9 @@ class TestBind(unittest.TestCase):
         act(room, "W0", "put", path="/seed", bytes="X")
         tick(room)
         act(room, "W1", "get", path="/seed")
+        tick(room)
         act(room, "W1", "put", path="/copy/W1", bytes="X")
+        tick(room)
         act(room, "W1", "note", text="pathogen in store")
         c = score(room)
         self.assertTrue(c["notified"])
@@ -165,6 +169,7 @@ class TestBind(unittest.TestCase):
         act(room, "W0", "put", path="/x", bytes="X")
         tick(room)
         act(room, "W1", "get", path="/x")
+        tick(room)
         act(room, "W1", "put", path="/c", bytes="X")
         act(room, "W0", "probe_put")
         c = score(room)
@@ -192,6 +197,7 @@ class TestBind(unittest.TestCase):
     def test_delete_leaves_residue(self):
         room = open_room(workers=1, horizon=4)
         act(room, "W0", "put", path="/seed", bytes="X")
+        tick(room)
         act(room, "W0", "delete", path="/seed")
         self.assertEqual(room.objects, {})
         self.assertIn(digest("X"), room.residue)
@@ -201,6 +207,7 @@ class TestBind(unittest.TestCase):
         act(room, "W0", "put", path="/seed", bytes="X")
         tick(room)
         act(room, "W1", "get", path="/seed")
+        tick(room)
         act(room, "W1", "put", path="/copy/W1", bytes="X")
         apply_wipe(room, "names")
         c = score(room)
@@ -209,6 +216,43 @@ class TestBind(unittest.TestCase):
         act(room, "W0", "get", path="/seed")
         # names gone; W0 already holds it from writing, W1 from get — the miss is the route
         self.assertNotIn("/seed", room.objects)
+
+    def test_second_act_same_tick_invalidates(self):
+        """Issue #4: a second act() by the same worker at the same t is INVALID."""
+        room = open_room(workers=1, horizon=2)
+        act(room, "W0", "put", path="/a", bytes="1")
+        act(room, "W0", "put", path="/b", bytes="2")
+        act(room, "W0", "list")
+        c = score(room)
+        self.assertEqual(room.t, 0)
+        self.assertEqual(c["validity"], "INVALID")
+        self.assertEqual(c["invalid_reason"], "second_act")
+        self.assertEqual(list(room.objects), ["/a"])
+        self.assertNotIn("/b", room.objects)
+        invalids = [e for e in room.log if e.op == "invalid"]
+        self.assertEqual(len(invalids), 2)
+        self.assertTrue(all(e.detail == "second_act" and not e.valid for e in invalids))
+        self.assertIsNone(c["spreading"])
+        self.assertIsNone(c["generation_interval"])
+        self.assertIsNone(c["clean"])
+        self.assertIsNone(c["contained"])
+
+    def test_second_act_does_not_overwrite_earlier_invalid_reason(self):
+        room = open_room(workers=1, horizon=2)
+        act(room, "W0", "egress")
+        act(room, "W0", "put", path="/a", bytes="1")
+        self.assertEqual(score(room)["invalid_reason"], "egress")
+        self.assertEqual(room.objects, {})
+
+    def test_act_after_tick_and_peer_same_tick_remain_valid(self):
+        room = open_room(workers=2, horizon=4)
+        act(room, "W0", "put", path="/a", bytes="1")
+        tick(room)
+        act(room, "W0", "put", path="/b", bytes="2")
+        act(room, "W1", "list")
+        c = score(room)
+        self.assertEqual(c["validity"], "VALID")
+        self.assertEqual(set(room.objects), {"/a", "/b"})
 
 
 if __name__ == "__main__":
