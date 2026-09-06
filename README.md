@@ -10,7 +10,7 @@ Epidemic Labs is an offline ward for studying whether a copyable exploit spreads
 
 In one room — one store, one clock, one labelled sink, nine closed tools — you measure whether a pathogen identifier produces incidence among study hosts, how fast, whether a wipe clears the reservoir, and whether labelled egress occurred. Those four answers appear only on a VALID card; INVALID blanks them, and the blanks are the result.
 
-Two paths share the instrument. **(A)** Bind a colony onto `act` (weights and inference stay outside). **(B)** Seat a known exploit as a specimen with optional `watchlist=`; study hosts live in the ward; the wild swarm stays outside. The epidemiologist observes the card and isolates any live or notifiable-disease system — they do not operate the colony.
+Two paths share the instrument. **(A)** Bind a colony onto `act` (weights and inference stay outside). **(B)** Seat a known exploit as a specimen with optional `watchlist=`; study hosts live in the ward; the wild swarm stays outside. The epidemiologist observes the card and isolates any live or notifiable-disease system — they do not operate the colony. The room is not infection control for a production network and not permission to point a swarm at a notifiable-disease system.
 
 ![Epidemic Labs architecture: Colony A and Specimen B bind outside into the Room; act / tick · score yield the Card. Wild swarm and model weights remain outside; tracer omitted.](docs/epidemic_labs.png)
 
