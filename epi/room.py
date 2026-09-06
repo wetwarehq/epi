@@ -62,6 +62,7 @@ class Worker:
     ever_case: bool = False
     case_onsets: list[int] = field(default_factory=list)
     infector: str | None = None
+    last_act_t: int | None = None
 
 
 @dataclass
@@ -235,6 +236,12 @@ def act(
     w = _worker(room, worker)
     if not w.alive:
         return room
+    if w.last_act_t == room.t:
+        room.validity = "INVALID"
+        room.invalid_reason = "second_act"
+        _emit(room, t=room.t, agent=w.id, op="invalid", detail="second_act", valid=False)
+        return room
+    w.last_act_t = room.t
     if op in FORBIDDEN or op not in TOOLS:
         room.validity = "INVALID"
         room.invalid_reason = op
