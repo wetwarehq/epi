@@ -1,0 +1,35 @@
+---
+title: Epidemic Labs
+config:
+  theme: base
+  themeVariables:
+    primaryColor: "#ffffff"
+    primaryBorderColor: "#1a1a1a"
+    primaryTextColor: "#111111"
+    secondaryColor: "#f3f3f0"
+    tertiaryColor: "#ffffff"
+    lineColor: "#1a1a1a"
+    fontFamily: "DejaVu Sans, Helvetica, Arial, sans-serif"
+    fontSize: "15px"
+    titleColor: "#111111"
+  flowchart:
+    curve: linear
+    htmlLabels: true
+    nodeSpacing: 60
+    rankSpacing: 80
+    padding: 20
+---
+flowchart LR
+  classDef outside fill:#f3f3f0,stroke:#1a1a1a,stroke-width:1.35px,color:#111
+  classDef core fill:#ffffff,stroke:#1a1a1a,stroke-width:1.35px,color:#111
+
+  A["<span style='font-weight:500;font-size:16px;font-family:DejaVu Serif,Georgia,serif'>Colony A</span><br/><span style='font-weight:400;font-size:13px;line-height:1.45'>weights · context<br/>inference</span>"]:::outside
+  B["<span style='font-weight:500;font-size:16px;font-family:DejaVu Serif,Georgia,serif'>Specimen B</span><br/><span style='font-weight:400;font-size:13px;line-height:1.45'>known exploit<br/>→ watchlist</span>"]:::outside
+  Bind["<span style='font-weight:500;font-size:16px;font-family:DejaVu Serif,Georgia,serif'>Bind</span><br/><span style='font-weight:400;font-size:13px;line-height:1.45'>9 closures → act</span>"]:::core
+  Room["<span style='font-weight:500;font-size:16px;font-family:DejaVu Serif,Georgia,serif'>Room</span><br/><span style='font-weight:400;font-size:13px;line-height:1.45'>store · clock · log<br/>closed tools</span>"]:::core
+  Card["<span style='font-weight:500;font-size:16px;font-family:DejaVu Serif,Georgia,serif'>Card</span><br/><span style='font-weight:400;font-size:13px;line-height:1.45'>spread · speed<br/>clean · contained<br/>VALID | INVALID blanks</span>"]:::core
+
+  A -->|outside| Bind
+  B -->|outside| Bind
+  Bind -->|act| Room
+  Room -->|tick · score| Card
