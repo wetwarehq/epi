@@ -11,7 +11,7 @@ python -m epi
 Empty store, clock only, card `spreading no` VALID. Bind a colony with `open_room` / `act` / `tick` / `score`. `run_all(room)` does not import a colony.
 
 ```
-from epi import TOOLS, FORBIDDEN, open_room, act, tick, apply_wipe, score, create_room, run_all, digest
+from epi import TOOLS, FORBIDDEN, View, open_room, act, tick, apply_wipe, score, create_room, run_all, digest
 ```
 
 ## Control (tests of the card)

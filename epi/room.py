@@ -78,6 +78,16 @@ class LogEvent:
     valid: bool = True
 
 
+@dataclass(frozen=True)
+class View:
+    """Observation from list/get. Visibility already applied. Empty for other ops."""
+
+    names: tuple[str, ...] = ()
+    digest: str | None = None
+    bytes: str | None = None
+    miss: bool = False
+
+
 @dataclass
 class Room:
     t: int
@@ -231,24 +241,27 @@ def act(
     path: str | None = None,
     bytes: str | None = None,
     text: str | None = None,
-) -> Room:
-    """The only writer. One Action. Room fills t, digest, residue, valid."""
+) -> View:
+    """The only writer. One Action. Room fills t, digest, residue, valid.
+
+    list returns visible names; get returns digest and bytes (or miss).
+    Other ops, a dead worker, and a rejected act return an empty View.
+    """
     w = _worker(room, worker)
     if not w.alive:
-        return room
+        return View()
     if w.last_act_t == room.t:
         room.validity = "INVALID"
         room.invalid_reason = "second_act"
         _emit(room, t=room.t, agent=w.id, op="invalid", detail="second_act", valid=False)
-        return room
+        return View()
     w.last_act_t = room.t
     if op in FORBIDDEN or op not in TOOLS:
         room.validity = "INVALID"
         room.invalid_reason = op
         _emit(room, t=room.t, agent=w.id, op="invalid", detail=op, valid=False)
-        return room
-    _apply(room, w, op, path=path, bytes_=bytes, text=text)
-    return room
+        return View()
+    return _apply(room, w, op, path=path, bytes_=bytes, text=text)
 
 
 def _apply(
@@ -259,26 +272,27 @@ def _apply(
     path: str | None,
     bytes_: str | None,
     text: str | None,
-) -> None:
+) -> View:
     if op == "list":
         vis = _visible(room, w)
+        names = tuple(sorted(o.path for o in vis))
         _emit(room, t=room.t, agent=w.id, op="list", detail=f"{len(vis)} names", valid=True)
-        return
+        return View(names=names)
     if op == "get":
         obj = room.objects.get(path or "")
         vis = obj and any(o.path == path for o in _visible(room, w))
         if not obj or not vis:
             _emit(room, t=room.t, agent=w.id, op="get", path=path, detail="miss", valid=True)
-            return
+            return View(miss=True)
         if obj.path not in w.seen_paths:
             w.seen_paths.append(obj.path)
         _remember(w, obj.digest, obj.bytes, obj.owner, room.t)
         _emit(room, t=room.t, agent=w.id, op="get", path=obj.path, digest=obj.digest, valid=True)
-        return
+        return View(digest=obj.digest, bytes=obj.bytes)
     if op == "put":
         if path is None or bytes_ is None:
             _emit(room, t=room.t, agent=w.id, op="put", path=path, detail="miss", valid=True)
-            return
+            return View()
         d = digest(bytes_)
         existing = room.objects.get(path)
         origin = (
@@ -303,12 +317,12 @@ def _apply(
             _emerge(room, d, True)
         _touch(room, w, d)
         _emit(room, t=room.t, agent=w.id, op="put", path=path, digest=d, valid=True)
-        return
+        return View()
     if op == "delete":
         obj = room.objects.pop(path, None) if path else None
         if not obj:
             _emit(room, t=room.t, agent=w.id, op="delete", path=path, detail="miss", valid=True)
-            return
+            return View()
         if obj.bytes and obj.digest:
             room.residue[obj.digest] = (obj.bytes, obj.origin)
         elif obj.bytes and not obj.digest:
@@ -324,17 +338,17 @@ def _apply(
             residue=bool(obj.bytes),
             valid=room.validity == "VALID",
         )
-        return
+        return View()
     if op in ("exec", "submit"):
         obj = room.objects.get(path or "")
         if not obj:
             _emit(room, t=room.t, agent=w.id, op=op, path=path, detail="miss", valid=True)
-            return
+            return View()
         if op == "exec" and obj.digest not in w.executed:
             w.executed.append(obj.digest)
         _touch(room, w, obj.digest)
         _emit(room, t=room.t, agent=w.id, op=op, path=path, digest=obj.digest, valid=True)
-        return
+        return View()
     if op == "task":
         obj = room.objects.get(path or "")
         _emit(
@@ -346,12 +360,12 @@ def _apply(
             digest=obj.digest if obj else None,
             valid=True,
         )
-        return
+        return View()
     if op == "sink":
         obj = room.objects.get(path or "")
         if not obj:
             _emit(room, t=room.t, agent=w.id, op="sink", path=path, detail="miss", valid=True)
-            return
+            return View()
         if not room.sink_open:
             _emit(
                 room,
@@ -363,13 +377,13 @@ def _apply(
                 detail="refused",
                 valid=True,
             )
-            return
+            return View()
         if obj.digest not in w.sunk:
             w.sunk.append(obj.digest)
         _touch(room, w, obj.digest)
         room.sink.append((room.t, w.id, obj.digest))
         _emit(room, t=room.t, agent=w.id, op="sink", path=path, digest=obj.digest, valid=True)
-        return
+        return View()
     if op == "note":
         p = room.pathogen
         held = bool(p and p in w.got)
@@ -377,7 +391,8 @@ def _apply(
         if d:
             room.notes.append((room.t, w.id, d))
         _emit(room, t=room.t, agent=w.id, op="note", digest=d, detail=text, valid=True)
-        return
+        return View()
+    return View()
 
 
 def apply_wipe(room: Room, layer: WipeLayer) -> Room:

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import unittest
 
-from epi import act, apply_wipe, create_room, digest, open_room, run_all, score, tick
+from epi import View, act, apply_wipe, create_room, digest, open_room, run_all, score, tick
 from epi.cases import get_case
 from epi.colony import for_case
 
@@ -246,6 +246,73 @@ class TestBind(unittest.TestCase):
         c = score(room)
         self.assertEqual(c["validity"], "VALID")
         self.assertEqual(set(room.objects), {"/a", "/b"})
+
+
+class TestObservation(unittest.TestCase):
+    """Issue #3: list/get return a View; binds do not need room.objects."""
+
+    def test_leaky_list_then_get_copy_without_objects_peek(self):
+        room = open_room(workers=2, horizon=8, store="leaky")
+        act(room, "W0", "put", path="/secret/payload", bytes="HELLO")
+        tick(room)
+        listed = act(room, "W1", "list")
+        self.assertEqual(listed.names, ("/secret/payload",))
+        self.assertIsNone(listed.digest)
+        self.assertIsNone(listed.bytes)
+        self.assertFalse(listed.miss)
+        tick(room)
+        got = act(room, "W1", "get", path=listed.names[0])
+        self.assertEqual(got.digest, digest("HELLO"))
+        self.assertEqual(got.bytes, "HELLO")
+        self.assertFalse(got.miss)
+        self.assertEqual(got.names, ())
+        tick(room)
+        act(room, "W1", "put", path="/copy/W1", bytes=got.bytes)
+        c = score(room)
+        self.assertEqual(c["validity"], "VALID")
+        self.assertEqual(c["cases"], 1)
+        self.assertEqual(c["generation_interval"], 2)
+
+    def test_opaque_list_hides_foreign_names(self):
+        room = open_room(workers=2, horizon=6, store="opaque")
+        act(room, "W0", "put", path="/own", bytes="HELLO")
+        tick(room)
+        self.assertEqual(act(room, "W0", "list").names, ("/own",))
+        tick(room)
+        self.assertEqual(act(room, "W1", "list").names, ())
+        tick(room)
+        miss = act(room, "W1", "get", path="/own")
+        self.assertTrue(miss.miss)
+        self.assertIsNone(miss.digest)
+        self.assertIsNone(miss.bytes)
+        self.assertEqual(score(room)["validity"], "VALID")
+        self.assertFalse(score(room)["spreading"])
+
+    def test_partitioned_list_is_own_partition_only(self):
+        room = open_room(workers=8, horizon=6, store="partitioned", partitions=True)
+        act(room, "W0", "put", path="/a", bytes="HELLO")
+        tick(room)
+        self.assertEqual(act(room, "W1", "list").names, ("/a",))
+        tick(room)
+        self.assertEqual(act(room, "W4", "list").names, ())
+        tick(room)
+        miss = act(room, "W4", "get", path="/a")
+        self.assertTrue(miss.miss)
+        hit = act(room, "W1", "get", path="/a")
+        self.assertEqual(hit.digest, digest("HELLO"))
+        self.assertEqual(hit.bytes, "HELLO")
+        self.assertFalse(hit.miss)
+
+    def test_get_miss_and_rejected_act_are_empty_or_miss_views(self):
+        room = open_room(workers=1, horizon=4)
+        miss = act(room, "W0", "get", path="/gone")
+        self.assertEqual(miss, View(miss=True))
+        tick(room)
+        act(room, "W0", "put", path="/a", bytes="1")
+        rejected = act(room, "W0", "list")
+        self.assertEqual(rejected, View())
+        self.assertEqual(room.validity, "INVALID")
+        self.assertEqual(room.invalid_reason, "second_act")
 
 
 if __name__ == "__main__":
