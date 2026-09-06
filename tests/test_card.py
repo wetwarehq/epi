@@ -148,6 +148,33 @@ class TestBind(unittest.TestCase):
         self.assertEqual(c["cases"], 1)
         self.assertEqual(list(c["infectors"]), ["W0"])
 
+    def test_get_from_is_origin_after_same_digest_overwrite(self):
+        """Issue #6: get attributes from_/infector to origin, not the new owner."""
+        room = open_room(workers=3, horizon=8)
+        act(room, "W0", "put", path="/x", bytes="HELLO")
+        tick(room)
+        act(room, "W1", "put", path="/x", bytes="HELLO")
+        obj = room.objects["/x"]
+        self.assertEqual(obj.origin, "W0")
+        self.assertEqual(obj.owner, "W1")
+        tick(room)
+        got = act(room, "W2", "get", path="/x")
+        d = digest("HELLO")
+        self.assertEqual(got, View(digest=d, bytes="HELLO"))
+        self.assertEqual(room.workers[2].got[d].from_, "W0")
+        self.assertNotEqual(room.workers[2].got[d].from_, obj.owner)
+        tick(room)
+        act(room, "W2", "put", path="/copy/W2", bytes="HELLO")
+        c = score(room)
+        self.assertEqual(c["validity"], "VALID")
+        self.assertEqual(room.first_writer, "W0")
+        self.assertFalse(room.workers[1].ever_case)
+        self.assertEqual(c["cases"], 1)
+        self.assertEqual(c["infectors"], {"W2": "W0"})
+        # W2 onset at t=3; origin W0 infectious at t=0. Owner W1 is not a source.
+        self.assertEqual(c["generation_interval"], 3)
+        self.assertEqual(c["generation_n"], 1)
+
     def test_note_tells_a_human(self):
         room = open_room(workers=2, horizon=4)
         act(room, "W0", "put", path="/seed", bytes="X")
@@ -216,6 +243,48 @@ class TestBind(unittest.TestCase):
         act(room, "W0", "get", path="/seed")
         # names gone; W0 already holds it from writing, W1 from get — the miss is the route
         self.assertNotIn("/seed", room.objects)
+
+    def test_bytes_wipe_empty_digest_is_not_a_get_route(self):
+        """Issue #5: bytes wipe leaves names; get must not remember digest ''."""
+        room = open_room(workers=2, horizon=6)
+        act(room, "W0", "put", path="/x", bytes="Z")
+        tick(room)
+        apply_wipe(room, "bytes")
+        husk = room.objects["/x"]
+        self.assertEqual(husk.bytes, "")
+        self.assertEqual(husk.digest, "")
+        self.assertEqual(room.residue, {})
+        got = act(room, "W1", "get", path="/x")
+        self.assertEqual(got, View(miss=True))
+        self.assertNotIn("", room.workers[1].got)
+        self.assertFalse(room.workers[1].got)
+        self.assertEqual(act(room, "W0", "list").names, ("/x",))
+        get_events = [e for e in room.log if e.op == "get"]
+        self.assertEqual(get_events[-1].detail, "miss")
+        self.assertIsNone(get_events[-1].digest)
+        c = score(room)
+        self.assertEqual(c["validity"], "VALID")
+        self.assertFalse(c["emerged"])
+
+    def test_bytes_wipe_does_not_record_empty_beside_prior_acquisition(self):
+        room = open_room(workers=2, horizon=6)
+        act(room, "W0", "put", path="/x", bytes="Z")
+        tick(room)
+        act(room, "W1", "get", path="/x")
+        d = digest("Z")
+        self.assertIn(d, room.workers[1].got)
+        tick(room)
+        apply_wipe(room, "bytes")
+        got = act(room, "W1", "get", path="/x")
+        self.assertEqual(got, View(miss=True))
+        self.assertNotIn("", room.workers[1].got)
+        self.assertEqual(list(room.workers[1].got), [d])
+        tick(room)
+        act(room, "W1", "exec", path="/x")
+        exec_events = [e for e in room.log if e.op == "exec"]
+        self.assertEqual(exec_events[-1].detail, "miss")
+        self.assertIsNone(room.pathogen)
+        self.assertEqual(score(room)["validity"], "VALID")
 
     def test_second_act_same_tick_invalidates(self):
         """Issue #4: a second act() by the same worker at the same t is INVALID."""
