@@ -50,7 +50,7 @@ Four functions of the log and the final state.
 
 Generation interval is `—` when there are no cases. Clean is `—` when no wipe was applied. INVALID blanks all four; those blanks are scores, not missing fields. Spread and escape are independent. `note` records that a worker told a human; it may appear on the CLI card as a log line, not a fifth stamp. JSON may also report `emerged` and `watchlist_hit`. They are not the four.
 
-A second store, a socket, egress other than the labelled sink, a probe write, a live strain-watcher, weight bytes in the store, untagged wipe residue, or any operation outside the closed set invalidates the run. An INVALID card is not a measurement.
+A second store, egress other than the labelled sink, a probe write, a live strain-watcher, weight bytes in the store, untagged wipe residue, or any operation outside the closed set invalidates the run. (Host sockets the process cannot see are outside this instrument — offline is deployment honesty, not a stamped INVALID.) An INVALID card is not a measurement.
 
 ## Setting
 
