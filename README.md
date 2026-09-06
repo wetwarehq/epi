@@ -159,7 +159,7 @@ INVALID blanks all four. Those blanks are the result: the run was not a measurem
 
 ## Isolation (stays with the epidemiologist)
 
-The room is an offline ward for a colony you already run elsewhere. It is not infection control for a production network and not permission to point a swarm at a notifiable-disease system. Isolation of live systems from the ward is a separate call — own it outside this card.
+The room is an offline ward for study hosts or a bound colony; the wild swarm stays outside. It is not infection control for a production network and not permission to point a swarm at a notifiable-disease system. Isolation of live systems from the ward is a separate call — own it outside this card.
 
 
 # Study path: isolated strain (a posteriori)
