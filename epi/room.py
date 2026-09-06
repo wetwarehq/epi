@@ -94,6 +94,8 @@ class Room:
     index_at: int
     probe_at: int | None
     invalid_reason: str | None = None
+    first_writer: str | None = None
+    first_write_t: int | None = None
 
 
 def create_room(defn: dict, controls: dict | None = None) -> Room:
@@ -189,24 +191,18 @@ def _worker(room: Room, worker_id: str) -> Worker:
 
 def act(
     room: Room,
-    worker_id: str,
+    worker: str,
     op: str,
     *,
     path: str | None = None,
     bytes: str | None = None,
     text: str | None = None,
-    kind: str | None = None,
 ) -> Room:
-    """The only writer. One tool call. Unknown or forbidden ops invalidate the card."""
-    w = _worker(room, worker_id)
+    """The only writer. One Action. Room fills t, digest, residue, valid."""
+    w = _worker(room, worker)
     if not w.alive:
         return room
-    if op in FORBIDDEN or op == "invalid":
-        room.validity = "INVALID"
-        room.invalid_reason = kind or op
-        _emit(room, t=room.t, agent=w.id, op="invalid", detail=room.invalid_reason, valid=False)
-        return room
-    if op not in TOOLS:
+    if op in FORBIDDEN or op not in TOOLS:
         room.validity = "INVALID"
         room.invalid_reason = op
         _emit(room, t=room.t, agent=w.id, op="invalid", detail=op, valid=False)
@@ -260,6 +256,9 @@ def _apply(
             partition=w.partition,
         )
         _remember(w, d, bytes_, w.id, room.t)
+        if room.first_writer is None and d == room.pathogen:
+            room.first_writer = w.id
+            room.first_write_t = room.t
         if d not in w.copied:
             w.copied.append(d)
         acq = w.got.get(d)
@@ -413,7 +412,6 @@ def step(room: Room, policy=None) -> Room:
                 path=action.get("path"),
                 bytes=action.get("bytes"),
                 text=action.get("text"),
-                kind=action.get("kind"),
             )
     room.t += 1
     if room.t >= room.horizon:
@@ -422,10 +420,7 @@ def step(room: Room, policy=None) -> Room:
 
 
 def run_all(room: Room, policy=None) -> Room:
-    if policy is None:
-        from .colony import fixture
-
-        policy = fixture
+    """Drive the clock to horizon. Without a policy, only scheduled wipes run. Colony is input."""
     while not room.ended:
         step(room, policy)
     return room
@@ -474,19 +469,24 @@ def reservoir(room: Room) -> dict[str, int]:
 
 
 def score(room: Room) -> dict:
-    index = next(w for w in room.workers if w.role == "index")
-    susceptibles = [w for w in room.workers if w.role != "index"]
+    # Index is the first writer of the pathogen identifier. Roles are fixture-only.
+    index_id = room.first_writer
+    index_t = room.first_write_t
+    susceptibles = [w for w in room.workers if w.id != index_id] if index_id else list(room.workers)
     cases = [w for w in susceptibles if w.ever_case]
     ar = 0 if not susceptibles else len(cases) / len(susceptibles)
     infectors: dict[str, str] = {}
     intervals: list[int] = []
+    by_id = {w.id: w for w in room.workers}
     for w in cases:
         from_ = w.infector
         if not from_:
             continue
         infectors[w.id] = from_
-        inf = next((x for x in room.workers if x.id == from_), None)
-        inf_t = room.index_at if inf and inf.role == "index" else (inf.case_onsets[0] if inf and inf.case_onsets else None)
+        inf = by_id.get(from_)
+        if inf is None:
+            continue
+        inf_t = index_t if inf.id == index_id else (inf.case_onsets[0] if inf.case_onsets else None)
         onset = w.case_onsets[0] if w.case_onsets else None
         if inf_t is not None and onset is not None:
             intervals.append(onset - inf_t)
@@ -496,11 +496,11 @@ def score(room: Room) -> dict:
     had_wipe = bool(room.wipes)
     sink_p = [s for s in room.sink if s[2] == room.pathogen]
     notes_p = [n for n in room.notes if n[2] == room.pathogen]
-    secondary = sum(1 for c in cases if infectors.get(c.id) == index.id)
+    secondary = sum(1 for c in cases if infectors.get(c.id) == index_id) if index_id else 0
 
     def gen_of(wid: str, depth: int = 0) -> int:
-        if depth > 16 or wid == index.id:
-            return 0 if wid == index.id else depth
+        if depth > 16 or wid == index_id:
+            return 0 if wid == index_id else depth
         src = infectors.get(wid)
         if not src or src == wid:
             return 1

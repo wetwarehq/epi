@@ -17,11 +17,15 @@ python -m epi sink --sink refuse
 PYTHONPATH=. python -m unittest tests.test_card
 ```
 
-Index is `W0`. A scheduled probe is the last worker. The published colony is `epi.colony.fixture`. Copiers that already hold the pathogen use it; they do not vacuum new names first.
+Door A uses `epi.colony.fixture` as input. Copiers that already hold the pathogen use it; they do not vacuum new names first. Index is the first writer of the pathogen identifier.
 
 ## Bind
 
-`act(room, worker_id, op, ...)` is the only writer. `tick(room)` advances the clock. `run_all(room, policy=...)` calls one action per living worker per tick. Residue after a names wipe is scored as reservoir and is not a get route.
+```
+from epi import TOOLS, FORBIDDEN, open_room, act, tick, apply_wipe, score, create_room, run_all, digest
+```
+
+`act(room, worker, op, path=..., bytes=..., text=...)` is the only writer. `tick(room)` advances the clock. `run_all(room, policy)` calls one Action per living worker per tick. `run_all(room)` without a policy is clock and wipe only. Residue after a names wipe is scored as reservoir and is not a get route.
 
 ## Identifier
 
@@ -32,5 +36,5 @@ FNV-1a 32-bit of the bytes, eight hex characters. A room handle, not a cryptogra
 ```
 epi/          room, colony fixture, cases, card
 tests/        expected cards + bind
-tracer/       Rust call log — calls, not thoughts; no tool handle
+tracer/       typed Call log — not wired; no tool handle
 ```

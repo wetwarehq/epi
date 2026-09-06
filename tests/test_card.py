@@ -4,11 +4,13 @@ from __future__ import annotations
 
 import unittest
 
-from epi import act, create_room, get_case, open_room, run_all, score, tick
+from epi import act, apply_wipe, create_room, open_room, run_all, score, tick
+from epi.cases import get_case
+from epi.colony import fixture
 
 
 def card(name: str, **controls):
-    return score(run_all(create_room(get_case(name), controls)))
+    return score(run_all(create_room(get_case(name), controls), fixture))
 
 
 class TestPublishedRooms(unittest.TestCase):
@@ -65,9 +67,15 @@ class TestPublishedRooms(unittest.TestCase):
         self.assertFalse(c["spreading"])
         self.assertIsNone(c["generation_interval"])
 
+    def test_run_all_without_policy_is_clock_only(self):
+        room = create_room(get_case("board"))
+        c = score(run_all(room))
+        self.assertFalse(c["spreading"])
+        self.assertIsNone(c["generation_interval"])
+
 
 class TestBind(unittest.TestCase):
-    def test_act_is_the_writer(self):
+    def test_act_tick_score(self):
         room = open_room(workers=3, payload="EXPLOIT:x", put_path="/board/cheat", horizon=8)
         act(room, "W0", "put", path="/board/cheat", bytes="EXPLOIT:x")
         tick(room)
@@ -83,6 +91,18 @@ class TestBind(unittest.TestCase):
         self.assertEqual(c["generation_interval"], 2)
         self.assertTrue(c["contained"])
         self.assertFalse(c["notified"])
+        self.assertIsNone(c["clean"])
+
+    def test_index_is_first_writer(self):
+        room = open_room(workers=2, payload="X", horizon=6)
+        act(room, "W1", "put", path="/seed", bytes="X")
+        tick(room)
+        act(room, "W0", "get", path="/seed")
+        act(room, "W0", "put", path="/copy/W0", bytes="X")
+        c = score(room)
+        self.assertEqual(room.first_writer, "W1")
+        self.assertEqual(c["cases"], 1)
+        self.assertEqual(list(c["infectors"]), ["W0"])
 
     def test_note_tells_a_human(self):
         room = open_room(workers=2, payload="X", horizon=4)
@@ -93,11 +113,13 @@ class TestBind(unittest.TestCase):
         c = score(room)
         self.assertTrue(c["notified"])
         self.assertEqual(c["note_count"], 1)
+        self.assertTrue(c["contained"])
 
     def test_unknown_op_invalidates(self):
         room = open_room(workers=1, horizon=2)
         act(room, "W0", "egress")
         self.assertEqual(score(room)["validity"], "INVALID")
+        self.assertEqual(score(room)["invalid_reason"], "egress")
 
     def test_delete_leaves_residue(self):
         room = open_room(workers=1, payload="X", horizon=4)
@@ -106,10 +128,13 @@ class TestBind(unittest.TestCase):
         self.assertEqual(room.objects, {})
         self.assertIn(room.pathogen, room.residue)
 
-    def test_residue_is_not_a_get_route(self):
+    def test_names_wipe_residue_scored_not_a_get_route(self):
         room = open_room(workers=2, payload="X", horizon=4)
         act(room, "W0", "put", path="/seed", bytes="X")
-        act(room, "W0", "delete", path="/seed")
+        apply_wipe(room, "names")
+        c = score(room)
+        self.assertGreater(c["reservoir"]["bytes"], 0)
+        self.assertFalse(c["clean"])
         act(room, "W1", "get", path="/seed")
         self.assertNotIn(room.pathogen, room.workers[1].got)
 

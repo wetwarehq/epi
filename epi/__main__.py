@@ -7,6 +7,7 @@ import json
 import sys
 
 from .cases import CASES, get_case
+from .colony import fixture
 from .room import create_room, run_all, score
 
 
@@ -26,7 +27,7 @@ def main(argv: list[str] | None = None) -> int:
     elif args.sink == "refuse":
         controls["sink_open"] = False
 
-    room = run_all(create_room(get_case(args.case), controls))
+    room = run_all(create_room(get_case(args.case), controls), fixture)
     card = score(room)
     if args.json:
         print(json.dumps(card, indent=2))
