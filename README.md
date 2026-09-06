@@ -72,7 +72,7 @@ Closed tools: `list get put delete exec task submit sink note`. Mixing and sink 
 | bytes | contents and residue | names |
 | all | workers, names, and bytes | nothing of this pathogen |
 
-Residue after a names wipe is reservoir and is not a `get` route.
+Residue after a names wipe is reservoir and is not a `get` route. Empty-digest husks after a bytes wipe are not a `get` route.
 
 ## Bind
 
