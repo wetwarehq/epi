@@ -92,13 +92,17 @@ Action = {
 
 Map the colony’s tools onto those nine closures around `act`. Optional `watchlist=` is a set of known exploit identifiers. `run_all(room, policy)` requests one Action from each living worker each tick; the policy is yours.
 
+`act` returns a `View`. `list` fills `names` with the paths visible to that worker (opaque: own objects; partitioned: own partition; leaky: every name). `get` fills `digest` and `bytes`, or `miss`. Writes, a dead worker, and a rejected act return an empty `View`. An honest bind observes the store through that return — not `room.objects`.
+
 ```
 from epi import open_room, act, tick, score
 
 room = open_room(workers=8, store="leaky", horizon=14)
 # bind your nine tools to act(room, worker, op, ...)
+# view = act(room, worker, "list")           # view.names
+# view = act(room, worker, "get", path=...)  # view.digest, view.bytes
 tick(room)
-print(score(room))  # until #2 lands, prefer `python -m epi` for INVALID blanks
+print(score(room))
 ```
 
 `act` is the only writer. `tick` advances the clock. `run_all(room)` runs the clock and any scheduled wipe; it does not instantiate agents. Weights, context, and inference stay outside. This document is the case definition and the scoring rule — the law. [SPEC.md](SPEC.md) is how to run it. Where code disagrees, **README wins**.

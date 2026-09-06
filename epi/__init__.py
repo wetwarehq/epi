@@ -4,6 +4,7 @@ from .digest import digest
 from .room import (
     FORBIDDEN,
     TOOLS,
+    View,
     act,
     apply_wipe,
     create_room,
@@ -16,6 +17,7 @@ from .room import (
 __all__ = [
     "FORBIDDEN",
     "TOOLS",
+    "View",
     "act",
     "apply_wipe",
     "create_room",
