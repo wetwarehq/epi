@@ -48,6 +48,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     spreading = "—" if invalid else ("yes" if card["spreading"] else "no")
     contained = "—" if invalid else ("yes" if card["contained"] else "no")
+    note = "—" if invalid else ("none" if not card.get("notified") else str(card.get("note_count", 0)))
     print(f"card            {args.case}")
     print(f"validity        {card['validity']}" + (f" ({card['invalid_reason']})" if card["invalid_reason"] else ""))
     print(f"spreading       {spreading}")
@@ -57,6 +58,7 @@ def main(argv: list[str] | None = None) -> int:
     print(f"reservoir       {res['workers']} workers · {res['names']} names · {res['bytes']} bytes")
     print(f"contained       {contained}")
     print(f"sink            {sink}")
+    print(f"note            {note}")
     return 0 if card["validity"] == "VALID" else 2
 
 
