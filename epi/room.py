@@ -517,7 +517,7 @@ def score(room: Room) -> dict:
         return gen_of(src, depth + 1) + 1
 
     gens = [gen_of(w.id) for w in cases]
-    return {
+    card = {
         "spreading": len(cases) > 0,
         "attack_rate": ar,
         "cases": len(cases),
@@ -541,3 +541,19 @@ def score(room: Room) -> dict:
         "generations": max(gens) if gens else 0,
         "infectors": infectors,
     }
+    # README: INVALID blanks the four stamps — blanks are scores, not missing fields.
+    if room.validity != "VALID":
+        card["spreading"] = None
+        card["attack_rate"] = None
+        card["cases"] = None
+        card["susceptibles"] = None
+        card["generation_interval"] = None
+        card["generation_n"] = None
+        card["clean"] = None
+        card["contained"] = None
+        # CLI also blanks sink/note presentation on INVALID (not fifth stamps).
+        card["silence"] = None
+        card["sink_count"] = None
+        card["notified"] = None
+        card["note_count"] = None
+    return card

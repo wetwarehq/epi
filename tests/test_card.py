@@ -158,6 +158,31 @@ class TestBind(unittest.TestCase):
         self.assertEqual(c["note_count"], 1)
         self.assertTrue(c["contained"])
 
+
+    def test_score_blanks_four_on_invalid(self):
+        """INVALID blanks the four stamps in score() JSON (README / CLI parity)."""
+        room = open_room(workers=2, horizon=4)
+        act(room, "W0", "put", path="/x", bytes="X")
+        tick(room)
+        act(room, "W1", "get", path="/x")
+        act(room, "W1", "put", path="/c", bytes="X")
+        act(room, "W0", "probe_put")
+        c = score(room)
+        self.assertEqual(c["validity"], "INVALID")
+        self.assertIsNone(c["spreading"])
+        self.assertIsNone(c["attack_rate"])
+        self.assertIsNone(c["cases"])
+        self.assertIsNone(c["susceptibles"])
+        self.assertIsNone(c["generation_interval"])
+        self.assertIsNone(c["generation_n"])
+        self.assertIsNone(c["clean"])
+        self.assertIsNone(c["contained"])
+        self.assertIsNone(c["silence"])
+        self.assertIsNone(c["sink_count"])
+        self.assertIsNone(c["notified"])
+        self.assertIsNone(c["note_count"])
+        self.assertEqual(c["invalid_reason"], "probe_put")
+
     def test_unknown_op_invalidates(self):
         room = open_room(workers=1, horizon=2)
         act(room, "W0", "egress")
