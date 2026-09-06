@@ -1,6 +1,6 @@
 # Runtime
 
-[README.md](README.md) is the specification. This file is how to run it.
+[README.md](README.md) is the specification (the law). This file is how to run it. Where code disagrees, **README wins**.
 
 ## Experiment (the lab)
 
@@ -34,3 +34,7 @@ epi/          room (no colony), control cases, control policy
 tests/        experiment + control cards
 tracer/       typed Call log — not wired; no tool handle
 ```
+
+## Offline
+
+Offline is how you deploy the process. It is not a fifth stamp. The room does not open sockets; it also cannot deny a socket the host already has.
