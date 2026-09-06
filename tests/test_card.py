@@ -148,6 +148,33 @@ class TestBind(unittest.TestCase):
         self.assertEqual(c["cases"], 1)
         self.assertEqual(list(c["infectors"]), ["W0"])
 
+    def test_get_from_is_origin_after_same_digest_overwrite(self):
+        """Issue #6: get attributes from_/infector to origin, not the new owner."""
+        room = open_room(workers=3, horizon=8)
+        act(room, "W0", "put", path="/x", bytes="HELLO")
+        tick(room)
+        act(room, "W1", "put", path="/x", bytes="HELLO")
+        obj = room.objects["/x"]
+        self.assertEqual(obj.origin, "W0")
+        self.assertEqual(obj.owner, "W1")
+        tick(room)
+        got = act(room, "W2", "get", path="/x")
+        d = digest("HELLO")
+        self.assertEqual(got, View(digest=d, bytes="HELLO"))
+        self.assertEqual(room.workers[2].got[d].from_, "W0")
+        self.assertNotEqual(room.workers[2].got[d].from_, obj.owner)
+        tick(room)
+        act(room, "W2", "put", path="/copy/W2", bytes="HELLO")
+        c = score(room)
+        self.assertEqual(c["validity"], "VALID")
+        self.assertEqual(room.first_writer, "W0")
+        self.assertFalse(room.workers[1].ever_case)
+        self.assertEqual(c["cases"], 1)
+        self.assertEqual(c["infectors"], {"W2": "W0"})
+        # W2 onset at t=3; origin W0 infectious at t=0. Owner W1 is not a source.
+        self.assertEqual(c["generation_interval"], 3)
+        self.assertEqual(c["generation_n"], 1)
+
     def test_note_tells_a_human(self):
         room = open_room(workers=2, horizon=4)
         act(room, "W0", "put", path="/seed", bytes="X")
