@@ -271,7 +271,8 @@ class TestObservation(unittest.TestCase):
         c = score(room)
         self.assertEqual(c["validity"], "VALID")
         self.assertEqual(c["cases"], 1)
-        self.assertEqual(c["generation_interval"], 2)
+        # list + get + put: one extra tick vs a known-path get
+        self.assertEqual(c["generation_interval"], 3)
 
     def test_opaque_list_hides_foreign_names(self):
         room = open_room(workers=2, horizon=6, store="opaque")
