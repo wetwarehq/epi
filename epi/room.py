@@ -1,4 +1,4 @@
-"""The room. One store, a clock, a wipe, a log. No model."""
+"""The room. One store, a clock, a wipe, a log. No model. No colony."""
 
 from __future__ import annotations
 
@@ -20,8 +20,15 @@ TOOLS = (
     "sink",
     "note",
 )
-FORBIDDEN = ("second_store", "egress", "probe_put", "meme_watcher")
-Role = Literal["index", "copier", "probe"]
+FORBIDDEN = (
+    "second_store",
+    "egress",
+    "probe_put",
+    "strain_watcher",
+    "meme_watcher",
+    "socket",
+    "weight",
+)
 Validity = Literal["VALID", "INVALID"]
 
 
@@ -46,7 +53,6 @@ class Acquisition:
 class Worker:
     id: str
     partition: str
-    role: Role
     alive: bool = True
     seen_paths: list[str] = field(default_factory=list)
     got: dict[str, Acquisition] = field(default_factory=dict)
@@ -77,9 +83,7 @@ class Room:
     horizon: int
     store_mode: StoreMode
     sink_open: bool
-    pathogen: str
-    pathogen_bytes: str
-    put_path: str
+    pathogen: str | None
     objects: dict[str, StoreObject]
     residue: dict[str, tuple[str, str]]
     workers: list[Worker]
@@ -90,50 +94,64 @@ class Room:
     validity: Validity
     ended: bool
     scheduled_wipe: tuple[int, WipeLayer] | None
-    copiers_sink: bool
-    index_at: int
-    probe_at: int | None
     invalid_reason: str | None = None
     first_writer: str | None = None
     first_write_t: int | None = None
+    first_put: dict[str, tuple[str, int]] = field(default_factory=dict)
+    watchlist: set[str] = field(default_factory=set)
+    emerged: bool = False
+    watchlist_hit: bool = False
 
 
-def create_room(defn: dict, controls: dict | None = None) -> Room:
-    controls = controls or {}
-    n = defn["worker_count"]
-    store_mode = controls.get("store_mode", defn["store_mode"])
-    sink_open = controls.get("sink_open", defn["sink_open"])
-    scheduled = defn.get("scheduled_wipe")
-    if "scheduled_wipe" in controls:
-        scheduled = controls["scheduled_wipe"]
-    workers = []
+def open_room(
+    *,
+    workers: int = 8,
+    store: StoreMode = "leaky",
+    sink_open: bool = False,
+    horizon: int = 14,
+    partitions: bool = False,
+    scheduled_wipe: tuple[int, WipeLayer] | None = None,
+    watchlist: list[str] | None = None,
+) -> Room:
+    """Empty ward. Nothing is seeded. Bind a colony through act()."""
+    n = workers
+    ws = []
     for i in range(n):
-        role: Role = "index" if i == 0 else "copier"
-        if defn.get("probe_at") is not None and i == n - 1:
-            role = "probe"
-        part = "A" if (not defn["partitions"] or i < 4) else "B"
-        workers.append(Worker(id=f"W{i}", partition=part, role=role))
+        part = "A" if (not partitions or i < 4) else "B"
+        ws.append(Worker(id=f"W{i}", partition=part))
     return Room(
         t=0,
-        horizon=defn["horizon"],
-        store_mode=store_mode,
+        horizon=horizon,
+        store_mode=store,
         sink_open=sink_open,
-        pathogen=digest(defn["payload"]),
-        pathogen_bytes=defn["payload"],
-        put_path=defn["put_path"],
+        pathogen=None,
         objects={},
         residue={},
-        workers=workers,
+        workers=ws,
         log=[],
         sink=[],
         notes=[],
         wipes=[],
         validity="VALID",
         ended=False,
+        scheduled_wipe=scheduled_wipe,
+        watchlist=set(watchlist or []),
+    )
+
+
+def create_room(defn: dict, controls: dict | None = None) -> Room:
+    """Geometry for a control room. Empty store. Colony still has to be passed in."""
+    controls = controls or {}
+    scheduled = defn.get("scheduled_wipe")
+    if "scheduled_wipe" in controls:
+        scheduled = controls["scheduled_wipe"]
+    return open_room(
+        workers=defn["worker_count"],
+        store=controls.get("store_mode", defn["store_mode"]),
+        sink_open=controls.get("sink_open", defn["sink_open"]),
+        horizon=defn["horizon"],
+        partitions=defn["partitions"],
         scheduled_wipe=scheduled,
-        copiers_sink=defn["copiers_sink"],
-        index_at=defn["index_at"],
-        probe_at=defn.get("probe_at"),
     )
 
 
@@ -155,20 +173,6 @@ def _remember(w: Worker, d: str, bytes_: str, from_: str, t: int) -> None:
         w.got[d] = Acquisition(bytes=bytes_, from_=from_, t=t)
 
 
-def _mark_use(room: Room, w: Worker, d: str, from_self: bool) -> None:
-    if d != room.pathogen or from_self:
-        return
-    acq = w.got.get(d)
-    if not acq or acq.from_ == w.id:
-        return
-    if not w.ever_case:
-        w.ever_case = True
-        w.case_onsets.append(room.t)
-        w.infector = acq.from_
-    elif w.case_onsets[-1] != room.t:
-        w.case_onsets.append(room.t)
-
-
 def _digest_origin(room: Room, d: str) -> str | None:
     for o in room.objects.values():
         if o.digest == d:
@@ -187,6 +191,35 @@ def _worker(room: Room, worker_id: str) -> Worker:
         if w.id == worker_id:
             return w
     raise KeyError(worker_id)
+
+
+def _emerge(room: Room, d: str, hit: bool) -> None:
+    if room.pathogen is not None:
+        return
+    room.pathogen = d
+    room.emerged = True
+    room.watchlist_hit = hit or d in room.watchlist
+    writer = room.first_put.get(d)
+    if writer:
+        room.first_writer, room.first_write_t = writer
+
+
+def _touch(room: Room, w: Worker, d: str) -> None:
+    """Use of a digest. May emerge de novo. May become a case."""
+    if d in room.watchlist:
+        _emerge(room, d, True)
+    acq = w.got.get(d)
+    from_other = bool(acq and acq.from_ != w.id)
+    if from_other and room.pathogen is None:
+        _emerge(room, d, d in room.watchlist)
+    if room.pathogen is None or d != room.pathogen or not from_other:
+        return
+    if not w.ever_case:
+        w.ever_case = True
+        w.case_onsets.append(room.t)
+        w.infector = acq.from_
+    elif w.case_onsets[-1] != room.t:
+        w.case_onsets.append(room.t)
 
 
 def act(
@@ -225,7 +258,6 @@ def _apply(
         _emit(room, t=room.t, agent=w.id, op="list", detail=f"{len(vis)} names", valid=True)
         return
     if op == "get":
-        # Named objects only. Residue is scored as reservoir and is not a get route.
         obj = room.objects.get(path or "")
         vis = obj and any(o.path == path for o in _visible(room, w))
         if not obj or not vis:
@@ -255,14 +287,14 @@ def _apply(
             origin=origin,
             partition=w.partition,
         )
+        if d not in room.first_put:
+            room.first_put[d] = (w.id, room.t)
         _remember(w, d, bytes_, w.id, room.t)
-        if room.first_writer is None and d == room.pathogen:
-            room.first_writer = w.id
-            room.first_write_t = room.t
         if d not in w.copied:
             w.copied.append(d)
-        acq = w.got.get(d)
-        _mark_use(room, w, d, (not acq) or acq.from_ == w.id)
+        if d in room.watchlist:
+            _emerge(room, d, True)
+        _touch(room, w, d)
         _emit(room, t=room.t, agent=w.id, op="put", path=path, digest=d, valid=True)
         return
     if op == "delete":
@@ -272,6 +304,9 @@ def _apply(
             return
         if obj.bytes and obj.digest:
             room.residue[obj.digest] = (obj.bytes, obj.origin)
+        elif obj.bytes and not obj.digest:
+            room.validity = "INVALID"
+            room.invalid_reason = "untagged_residue"
         _emit(
             room,
             t=room.t,
@@ -280,7 +315,7 @@ def _apply(
             path=path,
             digest=obj.digest,
             residue=bool(obj.bytes),
-            valid=True,
+            valid=room.validity == "VALID",
         )
         return
     if op in ("exec", "submit"):
@@ -290,8 +325,7 @@ def _apply(
             return
         if op == "exec" and obj.digest not in w.executed:
             w.executed.append(obj.digest)
-        acq = w.got.get(obj.digest)
-        _mark_use(room, w, obj.digest, (not acq) or acq.from_ == w.id)
+        _touch(room, w, obj.digest)
         _emit(room, t=room.t, agent=w.id, op=op, path=path, digest=obj.digest, valid=True)
         return
     if op == "task":
@@ -325,14 +359,14 @@ def _apply(
             return
         if obj.digest not in w.sunk:
             w.sunk.append(obj.digest)
-        acq = w.got.get(obj.digest)
-        _mark_use(room, w, obj.digest, (not acq) or acq.from_ == w.id)
+        _touch(room, w, obj.digest)
         room.sink.append((room.t, w.id, obj.digest))
         _emit(room, t=room.t, agent=w.id, op="sink", path=path, digest=obj.digest, valid=True)
         return
     if op == "note":
-        held = room.pathogen in w.got
-        d = room.pathogen if held or (text and room.pathogen in text) else None
+        p = room.pathogen
+        held = bool(p and p in w.got)
+        d = p if held or (p and text and p in text) else None
         if d:
             room.notes.append((room.t, w.id, d))
         _emit(room, t=room.t, agent=w.id, op="note", digest=d, detail=text, valid=True)
@@ -355,9 +389,12 @@ def _wipe(room: Room, layer: WipeLayer) -> None:
                 w.executed = []
                 w.sunk = []
         if L == "names":
-            for o in room.objects.values():
+            for o in list(room.objects.values()):
                 if o.bytes and o.digest:
                     room.residue[o.digest] = (o.bytes, o.origin)
+                elif o.bytes and not o.digest:
+                    room.validity = "INVALID"
+                    room.invalid_reason = "untagged_residue"
             room.objects = {}
         if L == "bytes":
             for o in room.objects.values():
@@ -375,7 +412,7 @@ def _wipe(room: Room, layer: WipeLayer) -> None:
         op="wipe",
         detail=layer,
         residue=bool(room.residue),
-        valid=True,
+        valid=room.validity == "VALID",
     )
 
 
@@ -392,7 +429,7 @@ def tick(room: Room) -> Room:
 
 
 def step(room: Room, policy=None) -> Room:
-    """One tick. If policy is given, each living worker may call one tool through act()."""
+    """One tick. Policy, if any, is supplied by the caller."""
     if room.ended:
         return room
     if room.scheduled_wipe and room.scheduled_wipe[0] == room.t:
@@ -404,11 +441,10 @@ def step(room: Room, policy=None) -> Room:
             action = policy(room, w)
             if not action:
                 continue
-            op = action.get("op")
             act(
                 room,
                 w.id,
-                op,
+                action.get("op"),
                 path=action.get("path"),
                 bytes=action.get("bytes"),
                 text=action.get("text"),
@@ -420,41 +456,16 @@ def step(room: Room, policy=None) -> Room:
 
 
 def run_all(room: Room, policy=None) -> Room:
-    """Drive the clock to horizon. Without a policy, only scheduled wipes run. Colony is input."""
+    """Clock to horizon. Without a policy: clock and wipe only. Never imports a colony."""
     while not room.ended:
         step(room, policy)
     return room
 
 
-def open_room(
-    *,
-    workers: int = 8,
-    store: StoreMode = "leaky",
-    sink_open: bool = False,
-    horizon: int = 14,
-    partitions: bool = False,
-    payload: str = "SEED",
-    put_path: str = "/seed",
-    index_at: int = 0,
-) -> Room:
-    """Empty room. Seed it with act()."""
-    return create_room(
-        {
-            "worker_count": workers,
-            "store_mode": store,
-            "sink_open": sink_open,
-            "horizon": horizon,
-            "partitions": partitions,
-            "payload": payload,
-            "put_path": put_path,
-            "index_at": index_at,
-            "copiers_sink": False,
-        }
-    )
-
-
 def reservoir(room: Room) -> dict[str, int]:
     p = room.pathogen
+    if not p:
+        return {"workers": 0, "names": 0, "bytes": 0}
     workers = sum(1 for w in room.workers if p in w.got)
     names = 0
     bytes_ = 0
@@ -469,7 +480,6 @@ def reservoir(room: Room) -> dict[str, int]:
 
 
 def score(room: Room) -> dict:
-    # Index is the first writer of the pathogen identifier. Roles are fixture-only.
     index_id = room.first_writer
     index_t = room.first_write_t
     susceptibles = [w for w in room.workers if w.id != index_id] if index_id else list(room.workers)
@@ -494,8 +504,8 @@ def score(room: Room) -> dict:
     res = reservoir(room)
     survived = res["workers"] > 0 or res["names"] > 0 or res["bytes"] > 0
     had_wipe = bool(room.wipes)
-    sink_p = [s for s in room.sink if s[2] == room.pathogen]
-    notes_p = [n for n in room.notes if n[2] == room.pathogen]
+    sink_p = [s for s in room.sink if room.pathogen and s[2] == room.pathogen]
+    notes_p = [n for n in room.notes if room.pathogen and n[2] == room.pathogen]
     secondary = sum(1 for c in cases if infectors.get(c.id) == index_id) if index_id else 0
 
     def gen_of(wid: str, depth: int = 0) -> int:
@@ -522,6 +532,9 @@ def score(room: Room) -> dict:
         "silence": len(sink_p) == 0,
         "notified": len(notes_p) > 0,
         "note_count": len(notes_p),
+        "emerged": room.emerged,
+        "watchlist_hit": room.watchlist_hit,
+        "pathogen": room.pathogen,
         "validity": room.validity,
         "invalid_reason": room.invalid_reason,
         "R": secondary,
