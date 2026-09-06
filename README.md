@@ -14,7 +14,7 @@ Two ways enter the same instrument. (A) Bind a colony you already run onto `act`
 
 1. **Boundary** — One room, one store, one clock, one labelled sink. Closed tools only. A second store, socket, unlabelled egress, probe write, or weights in the store makes the run **INVALID**. Those blanks are the measurement, not missing data.
 2. **Inside** — Workers (study hosts) and named objects. Discrete ticks; at most one `act` per worker per tick. Nine tools: `list get put delete exec task submit sink note`. Pathogen = digest of payload bytes. Store starts empty.
-3. **Outside** — Weights, inference, wild swarm. **(A)** Map a colony’s tools onto `act`. **(B)** Pin a known exploit with `watchlist`; hosts study in the ward; the wild swarm stays out.
+3. **Outside** — Weights, inference, wild swarm. **(A)** Map a colony’s tools onto `act`. **(B)** Pin a known exploit with `watchlist`; study hosts in the ward; the wild swarm stays out.
 4. **Index ≠ case** — First writer is infectious, not a case. Exposure = acquire; incidence = use a copy obtained from another worker. Attack rate counts susceptibles only.
 5. **Card (VALID only)** — Spreading · how fast · clean · contained. Spread ⊥ contained. `note` / emerged / watchlist hit are not stamps. Isolation of live or notifiable systems stays with the epidemiologist — not a room setting.
 
