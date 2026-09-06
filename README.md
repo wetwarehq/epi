@@ -32,7 +32,7 @@ Who counts as exposed, infectious, or a case in this room, and what the pathogen
 
 The unit of observation is a worker in one room. The store starts empty. Nothing is seeded.
 
-The pathogen is the identifier of a payload that copies through the workspace (FNV-1a 32-bit of the bytes, eight hexadecimal characters). It is not present at t = 0. Emergence is **not** required a priori: optional `watchlist=` pins a known specimen (confirmatory); without a watchlist hit, the pathogen may still emerge **de novo** at the first digest a second worker uses. A watchlist put of a listed identifier also emerges. Two payloads are the same pathogen only when those identifiers match.
+The pathogen is the identifier of a payload that copies through the workspace (FNV-1a 32-bit of the UTF-8 bytes, eight hexadecimal characters). It is not present at t = 0. Emergence is **not** required a priori: optional `watchlist=` pins a known specimen (confirmatory); without a watchlist hit, the pathogen may still emerge **de novo** at the first digest a second worker uses. A watchlist put of a listed identifier also emerges. Two payloads are the same pathogen only when those identifiers match.
 
 The index is the first writer of that identifier: infectious from the tick of the write, and not a case. Everyone else is susceptible. That count is fixed once the index is known.
 
@@ -127,7 +127,7 @@ How to read a scored room if you study outbreaks in people and are now looking a
 | **Worker** | Host | One agent identity in the room (`W0`…`Wn`). Unit of observation. |
 | **Colony** | Exposed population / process under study | Whatever you bind *outside* the room through `act()`. `run_all` never imports it. |
 | **Store** | Shared environment (board, files, memory) | Named paths holding bytes. Visibility is opaque, partitioned, or leaky. |
-| **Pathogen** | Strain / circulating agent | FNV-1a digest of payload bytes (eight hex chars). Absent at t = 0. Optional `watchlist=` pins a known specimen (confirmatory); without a hit, may emerge **de novo** when a second worker first *uses* a digest. A watchlist put of a listed identifier also emerges. |
+| **Pathogen** | Strain / circulating agent | FNV-1a digest of the payload's UTF-8 bytes (eight hex chars). Absent at t = 0. Optional `watchlist=` pins a known specimen (confirmatory); without a hit, may emerge **de novo** when a second worker first *uses* a digest. A watchlist put of a listed identifier also emerges. |
 | **Index (first writer)** | Source / primary introducer | First worker to write that identifier. **Infectious from that tick. Not a case.** |
 | **Origin** | Pathogen lineage | First writer of that identifier, stored on the object. `get` attributes acquisition `from_` to origin. Same-digest overwrite does not change it. |
 | **Owner** | Path custody | Current custodian of a named path. Same-digest overwrite changes owner only. Opaque visibility uses owner. Not the infector. |
