@@ -1,0 +1,11 @@
+[package]
+name = "epi-tracer"
+version = "0.1.0"
+edition = "2021"
+description = "Process-boundary tracer for epidemic labs. Records calls, not thoughts. No tool handle."
+license = "MIT"
+publish = false
+
+[lib]
+name = "epi_tracer"
+path = "src/lib.rs"
