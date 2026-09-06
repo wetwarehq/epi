@@ -18,11 +18,10 @@ from epi import TOOLS, FORBIDDEN, open_room, act, tick, apply_wipe, score, creat
 
 ```
 python -m epi control board
-python -m epi board
 PYTHONPATH=. python -m unittest tests.test_card
 ```
 
-`epi.colony.for_case` is input. The room does not see roles.
+`epi.colony.for_case` is input. The room has no roles. `python -m epi board` is not a command.
 
 ## Identifier
 

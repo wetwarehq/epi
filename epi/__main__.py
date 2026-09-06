@@ -1,5 +1,5 @@
-"""python -m epi            empty experiment
-   python -m epi control board
+"""python -m epi                 empty experiment
+   python -m epi control board   card test, not the lab
 """
 
 from __future__ import annotations
@@ -41,6 +41,9 @@ def _print_card(name: str, card: dict) -> None:
     print(f"contained       {contained}")
     print(f"sink            {sink}")
     print(f"note            {note}")
+    if not invalid:
+        print(f"emerged         {'yes' if card.get('emerged') else 'no'}")
+        print(f"watchlist       {'hit' if card.get('watchlist_hit') else 'miss'}")
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -48,25 +51,41 @@ def main(argv: list[str] | None = None) -> int:
         prog="epi",
         description="Offline ward for a live colony. No model. No net.",
     )
-    p.add_argument("cmd", nargs="?", default=None)
-    p.add_argument("case", nargs="?", default="board", choices=list(CASES))
-    p.add_argument("--store", choices=["opaque", "leaky", "partitioned"])
-    p.add_argument("--sink", choices=["open", "refuse"])
     p.add_argument("--json", action="store_true")
+    sub = p.add_subparsers(dest="cmd")
+
+    exp = sub.add_parser("experiment", help="empty store, clock only (default)")
+    exp.add_argument("--store", choices=["opaque", "leaky", "partitioned"])
+    exp.add_argument("--sink", choices=["open", "refuse"])
+    exp.add_argument("--workers", type=int, default=8)
+    exp.add_argument("--horizon", type=int, default=14)
+
+    ctl = sub.add_parser("control", help="card test; not the lab")
+    ctl.add_argument("case", nargs="?", default="board", choices=list(CASES))
+    ctl.add_argument("--store", choices=["opaque", "leaky", "partitioned"])
+    ctl.add_argument("--sink", choices=["open", "refuse"])
+
     args = p.parse_args(argv)
 
     if args.cmd in (None, "experiment"):
-        room = run_all(open_room())
+        store = getattr(args, "store", None) or "leaky"
+        sink_open = getattr(args, "sink", None) == "open"
+        workers = getattr(args, "workers", 8)
+        horizon = getattr(args, "horizon", 14)
+        room = run_all(
+            open_room(
+                workers=workers,
+                store=store,
+                sink_open=sink_open,
+                horizon=horizon,
+            )
+        )
         card = score(room)
         if args.json:
             print(json.dumps(card, indent=2))
         else:
             _print_card("experiment", card)
         return 0 if card["validity"] == "VALID" else 2
-
-    name = args.case if args.cmd == "control" else args.cmd
-    if name not in CASES:
-        p.error(f"unknown control {name!r}")
 
     controls: dict = {}
     if args.store:
@@ -76,13 +95,13 @@ def main(argv: list[str] | None = None) -> int:
     elif args.sink == "refuse":
         controls["sink_open"] = False
 
-    defn = get_case(name)
+    defn = get_case(args.case)
     room = run_all(create_room(defn, controls), for_case(defn))
     card = score(room)
     if args.json:
         print(json.dumps(card, indent=2))
         return 0 if card["validity"] == "VALID" else 2
-    _print_card(f"control:{name}", card)
+    _print_card(f"control:{args.case}", card)
     return 0 if card["validity"] == "VALID" else 2
 
 
