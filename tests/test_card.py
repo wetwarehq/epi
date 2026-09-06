@@ -177,6 +177,10 @@ class TestBind(unittest.TestCase):
         self.assertIsNone(c["generation_n"])
         self.assertIsNone(c["clean"])
         self.assertIsNone(c["contained"])
+        self.assertIsNone(c["silence"])
+        self.assertIsNone(c["sink_count"])
+        self.assertIsNone(c["notified"])
+        self.assertIsNone(c["note_count"])
         self.assertEqual(c["invalid_reason"], "probe_put")
 
     def test_unknown_op_invalidates(self):

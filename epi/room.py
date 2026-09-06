@@ -551,4 +551,9 @@ def score(room: Room) -> dict:
         card["generation_n"] = None
         card["clean"] = None
         card["contained"] = None
+        # CLI also blanks sink/note presentation on INVALID (not fifth stamps).
+        card["silence"] = None
+        card["sink_count"] = None
+        card["notified"] = None
+        card["note_count"] = None
     return card
