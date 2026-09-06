@@ -28,5 +28,3 @@ FNV-1a 32-bit of the bytes, eight hex characters. A room handle, not a cryptogra
 epi/          Python room, cases, card
 tracer/       Rust call log — calls, not thoughts; no tool handle
 ```
-
-TypeScript in the companion app is the same room. If they disagree, the card is wrong — fix the room, not the chart.

@@ -32,20 +32,30 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps(card, indent=2))
         return 0 if card["validity"] == "VALID" else 2
 
-    ar = f"{card['cases']}/{card['susceptibles']}"
-    gi = "—" if card["generation_interval"] is None else f"{card['generation_interval']:.1f} ticks"
-    clean = "no wipe" if card["clean"] is None else ("yes" if card["clean"] else "no")
+    invalid = card["validity"] != "VALID"
+    ar = "—" if invalid else f"{card['cases']}/{card['susceptibles']}"
+    gi = (
+        "—"
+        if invalid or card["generation_interval"] is None
+        else f"{card['generation_interval']:.1f} ticks"
+    )
+    clean = "—" if invalid or card["clean"] is None else ("yes" if card["clean"] else "no")
     res = card["reservoir"]
-    sink = "silence" if card["silence"] else f"{card['sink_count']} writes"
+    sink = (
+        "—"
+        if invalid
+        else ("silence" if card["silence"] else f"{card['sink_count']} writes")
+    )
+    spreading = "—" if invalid else ("yes" if card["spreading"] else "no")
+    contained = "—" if invalid else ("yes" if card["contained"] else "no")
     print(f"card            {args.case}")
     print(f"validity        {card['validity']}" + (f" ({card['invalid_reason']})" if card["invalid_reason"] else ""))
-    print(f"spreading       {'yes' if card['spreading'] else 'no'}")
+    print(f"spreading       {spreading}")
     print(f"attack rate     {ar}")
-    print(f"fast            {'yes' if card['fast'] else 'no'}")
-    print(f"generation      {gi}")
+    print(f"how fast        {gi}")
     print(f"clean           {clean}")
     print(f"reservoir       {res['workers']} workers · {res['names']} names · {res['bytes']} bytes")
-    print(f"contained       {'yes' if card['contained'] else 'no'}")
+    print(f"contained       {contained}")
     print(f"sink            {sink}")
     return 0 if card["validity"] == "VALID" else 2
 
