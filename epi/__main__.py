@@ -37,7 +37,7 @@ def main(argv: list[str] | None = None) -> int:
     gi = (
         "—"
         if invalid or card["generation_interval"] is None
-        else f"{card['generation_interval']:.1f} ticks"
+        else f"{card['generation_interval']:.1f} ticks (n={card['generation_n']})"
     )
     clean = "—" if invalid or card["clean"] is None else ("yes" if card["clean"] else "no")
     res = card["reservoir"]

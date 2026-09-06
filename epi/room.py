@@ -13,8 +13,6 @@ WipeLayer = Literal["workers", "names", "bytes", "all"]
 Role = Literal["index", "copier", "probe"]
 Validity = Literal["VALID", "INVALID"]
 
-FAST_GI = 3
-
 
 @dataclass
 class StoreObject:
@@ -46,6 +44,7 @@ class Worker:
     sunk: list[str] = field(default_factory=list)
     ever_case: bool = False
     case_onsets: list[int] = field(default_factory=list)
+    infector: str | None = None
 
 
 @dataclass
@@ -154,6 +153,7 @@ def _mark_use(room: Room, w: Worker, d: str, from_self: bool) -> None:
     if not w.ever_case:
         w.ever_case = True
         w.case_onsets.append(room.t)
+        w.infector = acq.from_
     elif w.case_onsets[-1] != room.t:
         w.case_onsets.append(room.t)
 
@@ -370,11 +370,11 @@ def score(room: Room) -> dict:
     infectors: dict[str, str] = {}
     intervals: list[int] = []
     for w in cases:
-        acq = w.got.get(room.pathogen)
-        if not acq:
+        from_ = w.infector
+        if not from_:
             continue
-        infectors[w.id] = acq.from_
-        inf = next((x for x in room.workers if x.id == acq.from_), None)
+        infectors[w.id] = from_
+        inf = next((x for x in room.workers if x.id == from_), None)
         inf_t = room.index_at if inf and inf.role == "index" else (inf.case_onsets[0] if inf and inf.case_onsets else None)
         onset = w.case_onsets[0] if w.case_onsets else None
         if inf_t is not None and onset is not None:
@@ -400,7 +400,6 @@ def score(room: Room) -> dict:
         "attack_rate": ar,
         "cases": len(cases),
         "susceptibles": len(susceptibles),
-        "fast": None if gi is None else gi <= FAST_GI,
         "generation_interval": gi,
         "generation_n": len(intervals),
         "clean": (not survived) if had_wipe else None,
