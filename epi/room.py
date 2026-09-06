@@ -128,6 +128,10 @@ def open_room(
     n = workers
     ws = []
     for i in range(n):
+        # TODO(#8): first-four → A is the published 8-worker seating
+        # (partition control 3/7). With workers < 5, partitioned mode is a
+        # no-op. Do not split-in-half or retile here — that would change
+        # seating for n ≠ 8 without a case-definition decision.
         part = "A" if (not partitions or i < 4) else "B"
         ws.append(Worker(id=f"W{i}", partition=part))
     return Room(
