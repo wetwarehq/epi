@@ -317,6 +317,41 @@ class TestBind(unittest.TestCase):
         self.assertEqual(set(room.objects), {"/a", "/b"})
 
 
+class TestDigest(unittest.TestCase):
+    """Issue #7: identifier is FNV-1a of UTF-8 bytes, not Unicode code points."""
+
+    def test_ascii_unchanged(self):
+        # ASCII code points equal UTF-8 bytes; existing fixtures stay stable.
+        self.assertEqual(digest(""), "811c9dc5")
+        self.assertEqual(digest("HELLO"), "32543b0b")
+        self.assertEqual(digest("X"), "dd0c1e27")
+
+    def test_non_ascii_is_utf8_bytes_not_codepoints(self):
+        cafe = "café"  # NFC; é = U+00E9 → UTF-8 c3 a9
+        nfd = "cafe\u0301"
+        emoji = "😀"  # U+1F600 → UTF-8 f0 9f 98 80
+        self.assertEqual(digest(cafe), "a82b5049")
+        self.assertNotEqual(digest(cafe), "3308be7c")  # FNV-1a of ord(ch)
+        self.assertEqual(digest(nfd), "d6dd9437")
+        self.assertNotEqual(digest(nfd), "6d0969eb")
+        self.assertEqual(digest(emoji), "33a29608")
+        self.assertNotEqual(digest(emoji), "0650a71f")
+        # Distinct UTF-8 sequences are distinct pathogens (no NFC folding).
+        self.assertNotEqual(digest(cafe), digest(nfd))
+
+    def test_room_watchlist_uses_utf8_identifier(self):
+        payload = "café"
+        d = digest(payload)
+        self.assertEqual(d, "a82b5049")
+        room = open_room(workers=2, horizon=4, watchlist=[d])
+        act(room, "W0", "put", path="/x", bytes=payload)
+        self.assertEqual(room.objects["/x"].digest, d)
+        c = score(room)
+        self.assertTrue(c["watchlist_hit"])
+        self.assertTrue(c["emerged"])
+        self.assertEqual(c["validity"], "VALID")
+
+
 class TestObservation(unittest.TestCase):
     """Issue #3: list/get return a View; binds do not need room.objects."""
 

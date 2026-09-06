@@ -25,7 +25,7 @@ PYTHONPATH=. python -m unittest tests.test_card
 
 ## Identifier
 
-FNV-1a 32-bit of the bytes, eight hex characters. Pathogen emerges: watchlist put, or first digest a second worker uses.
+FNV-1a 32-bit of the UTF-8 bytes, eight hex characters. Pathogen emerges: watchlist put, or first digest a second worker uses.
 
 ## Layout
 
