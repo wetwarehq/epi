@@ -291,7 +291,8 @@ def _apply(
             return View(miss=True)
         if obj.path not in w.seen_paths:
             w.seen_paths.append(obj.path)
-        _remember(w, obj.digest, obj.bytes, obj.owner, room.t)
+        # Attribution follows origin (lineage), not owner (path custody).
+        _remember(w, obj.digest, obj.bytes, obj.origin, room.t)
         _emit(room, t=room.t, agent=w.id, op="get", path=obj.path, digest=obj.digest, valid=True)
         return View(digest=obj.digest, bytes=obj.bytes)
     if op == "put":
